@@ -117,7 +117,7 @@ classify_changes <- function(specimen_data, name_changes) {
            correction = str_c(species_2007, species_2017) %in% correction_pairs,
            no_change = !(new_specimen | new_coordinates | corrected_coordinates | upgraded_to_species | downgraded_to_genus | lumped | split| nomenclatural | correction)) %>%
     select(-starts_with("determined_to_species")) %>%
-    gather(change, has_change, -id, -species_2007, -species_2017, -latitude_2007, -latitude_2017, -longitude_2007, -longitude_2017) %>%
+    gather(change, has_change, -id, -species_2007, -species_2017, -latitude_2007, -latitude_2017, -longitude_2007, -longitude_2017, -collection_year_2007, -collection_year_2017) %>%
     filter(has_change) %>%
     select(-has_change)
   

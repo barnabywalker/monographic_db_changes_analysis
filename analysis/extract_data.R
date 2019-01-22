@@ -61,24 +61,30 @@ old_data <-
 
 old_data <-
   old_data %>%
-  select(Specimen_ID, Checklist, LatDD, LongDD) %>%
+  select(Specimen_ID, Checklist, LatDD, LongDD, `Collection_Date_(Year)`) %>%
   rename(id = Specimen_ID,
          species = Checklist,
          latitude = LatDD,
-         longitude = LongDD)
+         longitude = LongDD,
+         collection_year = `Collection_Date_(Year)`)
 
 new_data <-
   new_data %>%
-  select(Specimen_ID, Checklist, LatDD, LongDD) %>%
+  select(Specimen_ID, Checklist, LatDD, LongDD, `Collectio_Date_(Year)`) %>%
   rename(id = Specimen_ID,
          species = Checklist,
          latitude = LatDD,
-         longitude = LongDD)
+         longitude = LongDD,
+         collection_year = `Collectio_Date_(Year)`)
 
 specimen_data <- 
   rbind(old_data, new_data) %>%
   mutate(dataset = c(rep("2007", nrow(old_data)), rep("2017", nrow(new_data))),
-         determined_to_species = str_detect(species, "[ ]+"))
+         determined_to_species = str_detect(species, "[ ]+"),
+         collection_year = str_replace(collection_year, "\\-\\d+", ""),
+         collection_year = str_replace(collection_year, "^[^12](?=[1-9]\\d{2})", "1"),
+         collection_year = case_when(str_detect(collection_year, "^[12]\\d{3}$") ~ collection_year,
+                                     TRUE ~ NA_character_))
 
 
 # load name and clean changes -------------------------------------------------
@@ -104,6 +110,7 @@ specimen_data %>%
 
 name_changes %>%
   write_csv(here("output", "name_change_data.csv"))
+
 # recode data for publication -------------------------------------------------
 
 id_values <- unique(specimen_data$id)
@@ -139,4 +146,3 @@ id_map %>%
 
 species_map %>%
   write_csv(here("output", "specimen_species_name_map.csv"))
-
