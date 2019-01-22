@@ -35,6 +35,14 @@ modelled_status_summary <-
   assessments %>%
   model_proportion_difference(dataset, eoo)
 
+modelled_threat_summary <-
+  assessments %>%
+  mutate(threatened = case_when(eoo == "DD" ~ "DD",
+                                eoo > "NT" ~ "threatened",
+                                TRUE ~ "not threatened"),
+         threatened = factor(threatened)) %>%
+  model_proportion_difference(dataset, threatened)
+
 assessment_counts <-
   assessments %>%
   count(eoo, dataset)
@@ -47,7 +55,30 @@ annotations <-
   summarise(y = max(n) + 15) %>%
   mutate(significant = TRUE,
          x = as.numeric(eoo) - 0.3,
-         xend = as.numeric(eoo) + 0.3)
+         xend = as.numeric(eoo) + 0.3,
+         grouping = "in")
+
+
+if (filter(modelled_threat_summary, threatened == "threatened")$significant == TRUE) {
+  annotations <-
+    annotations %>%
+    bind_rows(tibble(eoo="threatened", 
+                     x=3.7, 
+                     xend=6.3, 
+                     y=max(assessment_counts[assessment_counts$eoo > "NT", "n"]) + 30,
+                     grouping="out"))
+}
+
+if (filter(modelled_threat_summary, threatened == "not threatened")$significant == TRUE) {
+  annotations <-
+    annotations %>%
+    bind_rows(tibble(eoo="not threatened", 
+                     x=1.7, 
+                     xend=3.3, 
+                     y=max(assessment_counts[assessment_counts$eoo %in% c("NT", "LC"), "n"]) + 30,
+                     grouping="out"))
+}
+
 
 status_bar_chart <- 
   assessment_counts %>%
@@ -57,30 +88,16 @@ status_bar_chart <-
             ggtheme = theme_pubclean(), lab.size = 3.375,
             xlab = "Assessment category", ylab = "Number of species",
             lab.vjust = 0.5, lab.hjust = -0.1) +
-  geom_segment(data = annotations, aes(x = x, xend = xend, y = y, yend = y)) +
+  geom_segment(data = annotations, aes(x = x, xend = xend, y = y, yend = y, linetype=grouping)) +
   geom_text(data = annotations, aes(x = (x + xend) / 2, y = y + 4), label = "*", vjust=0.7) +
   coord_flip() +
+  guides(linetype=FALSE) +
   scale_fill_brewer(palette = "Set1", name = "")
 
-threatened_bar_chart <-
-  assessments %>%
-  mutate(threatened = ifelse(eoo > "NT", "threatened", "not threatened")) %>%
-  count(threatened, dataset) %>%
-  ggbarplot(x = "threatened", y = "n",
-            fill = "dataset", color = "white",
-            position = position_dodge((width=0.75)), label="n",
-            ggtheme = theme_pubclean(), lab.size=3.375, lab.vjust = 0.5, lab.hjust = -0.1) +
-  scale_fill_brewer(palette = "Set1", name="") +
-  coord_flip() +
-  labs(x="Number of species", y="")
-
-
 if (save_figures) {
-  ggsave(here("figures", "status_bar_chart.svg"), height = 4.2, width = 8, units="in", plot = status_bar_chart)
-  ggsave(here("figures", "threatened_bar_chart.svg"), height = 4.2, width = 6.5, units = "in", plot = threatened_bar_chart)
+  ggsave(here("figures", "figure2a.svg"), height = 4.2, width = 8, units="in", plot = status_bar_chart)
 } else {
   status_bar_chart
-  threatened_bar_chart
 }
 
 # chord diagrams of conservation assessments that change ----------------------
@@ -92,7 +109,7 @@ status_changes <-
          final = eoo_2017)
 
 if (save_figures) {
-  svg(here("figures", "status_change_preliminary.svg"))
+  svg(here("figures", "figure2b.svg"))
 }
 
 status_changes %>%
@@ -208,9 +225,9 @@ diff_specimen_map <-
   theme(legend.position = c(0.13, 0.28))
 
 if (save_figures) {
-  ggsave(here("figures", "specimen_map_2007.svg"), plot = old_specimen_map)
-  ggsave(here("figures", "specimen_map_2017.svg"), plot = new_specimen_map)
-  ggsave(here("figures", "specimen_map_difference.svg"), plot = diff_specimen_map)
+  ggsave(here("figures", "figure1a.svg"), plot = old_specimen_map)
+  ggsave(here("figures", "figure1b.svg"), plot = new_specimen_map)
+  ggsave(here("figures", "figure1c.svg"), plot = diff_specimen_map)
 } else {
   old_specimen_map
   new_specimen_map
@@ -309,9 +326,9 @@ diff_species_map <-
   theme(legend.position = c(0.13, 0.28))
 
 if (save_figures) {
-  ggsave(here("figures", "species_map_2007.svg"), old_species_map)
-  ggsave(here("figures", "species_map_2017.svg"), new_species_map)
-  ggsave(here("figures", "species_map_difference_red.svg"), plot = diff_species_map)
+  ggsave(here("figures", "figure1d.svg"), old_species_map)
+  ggsave(here("figures", "figure1e.svg"), new_species_map)
+  ggsave(here("figures", "figure1f.svg"), plot = diff_species_map)
 } else {
   old_species_map
   new_species_map
@@ -352,8 +369,8 @@ all_eoo_change_specimens <-
          !(eoo_2017 %in% "DD"), 
          !is.na(change), 
          !is.na(eoo_change),
-         assessed_species_2007 %in% specimen_data[specimen_data$determined_to_species,]$species | 
-           assessed_species_2017 %in% specimen_data[specimen_data$determined_to_species,]$species,
+         assessed_species_2007 %in% specimen_data[specimen_data$determined_to_species, ]$species |
+           assessed_species_2017 %in% specimen_data[specimen_data$determined_to_species, ]$species,
          !is.na(moved)) %>%
   plot_changes_pie(order = rev(eoo_change_types), labels=labels, colours=eoo_type_colours) +
   labs(title = "Specimen Changes Used For EOO Change Calculation") +
@@ -366,8 +383,8 @@ changed_eoo_specimens <-
          !(eoo_2017 %in% "DD"), 
          !is.na(change), 
          !is.na(eoo_change),
-         assessed_species_2007 %in% specimen_data[specimen_data$determined_to_species,]$species | 
-           assessed_species_2017 %in% specimen_data[specimen_data$determined_to_species,]$species,
+         assessed_species_2007 %in% specimen_data[specimen_data$determined_to_species, ]$species |
+           assessed_species_2017 %in% specimen_data[specimen_data$determined_to_species, ]$species,
          !is.na(moved)) %>%
   filter(moved == TRUE) %>%
   plot_changes_pie(order = rev(eoo_change_types), labels=labels, colours = eoo_type_colours) +
@@ -376,9 +393,9 @@ changed_eoo_specimens <-
 
 
 if (save_figures) {
-  ggsave(here("figures", "pie_all_specimen_changes.svg"), all_specimen_changes_pie)
-  ggsave(here("figures", "pie_eoo_calculation_specimen_changes.svg"), all_eoo_change_specimens)
-  ggsave(here("figures", "pie_eoo_change_specimen_changes.svg"), changed_eoo_specimens)
+  ggsave(here("figures", "appendix_s3a.svg"), all_specimen_changes_pie)
+  ggsave(here("figures", "appendix_s3b.svg"), all_eoo_change_specimens)
+  ggsave(here("figures", "appendix_s3c.svg"), changed_eoo_specimens)
 } else {
   all_specimen_changes_pie
   all_eoo_change_specimens
@@ -398,8 +415,8 @@ filtered_changes <-
          !(eoo_2017 %in% "DD"), 
          !is.na(change), 
          !is.na(eoo_change),
-         assessed_species_2007 %in% specimen_data[specimen_data$determined_to_species,]$species | 
-           assessed_species_2017 %in% specimen_data[specimen_data$determined_to_species,]$species,
+         assessed_species_2007 %in% specimen_data[specimen_data$determined_to_species, ]$species |
+           assessed_species_2017 %in% specimen_data[specimen_data$determined_to_species, ]$species,
          !is.na(moved))
 
 mean_changes <-
@@ -433,7 +450,7 @@ mean_change_per_type_split <-
             std_err = sd(eoo_change) / sqrt(n())) %>%
   mutate(moved = ifelse(moved, "Status change", "No status change")) %>%
   ungroup() %>%
-  rbind(mean_changes %>% select(-too_few) %>% mutate(moved = "Overall")) %>%
+  bind_rows(mean_changes %>% mutate(moved = "Overall") %>% select(-too_few)) %>%
   mutate(moved = factor(moved, levels=c("Overall", "No status change", "Status change"), ordered=TRUE)) %>%
   ggplot(mapping = aes(x = change, y = mean, colour = change)) +
   geom_hline(yintercept = 0, linetype = 4, colour = "grey50") +
@@ -494,13 +511,76 @@ combined_eoo_change_figs <- ggarrange(proportions_by_type,
                                       labels = c("(a)", "(b)"))
 
 if (save_figures) {
-  ggsave(here("figures", "eoo_changes_mean.svg"), mean_change_per_type)
-  ggsave(here("figures", "eoo_changes_mean_split.svg"), mean_change_per_type_split, height=9)
-  ggsave(here("figures", "eoo_changes_proportions.svg"), proportions_by_type)
-  ggsave(here("figures", "eoo_changes_combined_plots.svg"), combined_eoo_change_figs, width=9)
+  ggsave(here("figures", "appendix_s5.svg"), mean_change_per_type_split, height=9)
+  ggsave(here("figures", "figure4.svg"), combined_eoo_change_figs, width=9)
 } else {
-  mean_change_per_type
   mean_change_per_type_split
-  proportions_by_type
   combined_eoo_change_figs
 }
+
+# eoo comparison --------------------------------------------------------------
+
+eoo_comparison_plot <-
+  species_status_changes %>%
+  ggplot(mapping=aes(x=log(eoo_area_2007 + 1), y=log(eoo_area_2017 + 1))) +
+  geom_point(colour="steelblue", alpha=0.5) +
+  geom_abline(slope=1, intercept=0, linetype=2, colour="grey50", size=1) +
+  coord_equal() +
+  theme_bw() +
+  theme(legend.position="bottom") +
+  labs(x=expression("log(" ~ EOO["2007"] ~ ")"), y=expression("log(" ~ EOO["2017"] ~ ")")) +
+  theme(panel.border=element_blank())
+
+if (save_figures) {
+  ggsave(here("figures", "figure3.svg"), eoo_comparison_plot, width=5.39, height=5.39)
+} else {
+  eoo_comparison_plot
+}
+
+# record accumulation ---------------------------------------------------------
+
+specimen_accumulation_plot <-
+  specimen_changes %>%
+  filter(change == "new_specimen") %>%
+  filter(!is.na(collection_year_2017)) %>%
+  mutate(collected = ifelse(collection_year_2017 <= 2007, "before 2007", "after 2007")) %>%
+  ggplot(mapping=aes(x=collection_year_2017)) +
+  geom_histogram(mapping=aes(fill=collected), binwidth=6, alpha=0.8, colour="black") +
+  scale_fill_manual(values=c(`before 2007`="#636363", `after 2007`="#de2d26"), name="") +
+  theme_pubclean() +
+  labs(x="Collection year", y="Number of new specimens")
+
+if (save_figures) {
+  ggsave(here("figures", "appendix_s1.svg"), specimen_accumulation_plot, height=5, width=7)
+} else {
+  specimen_accumulation_plot
+}
+
+# specimen turnover -----------------------------------------------------------
+
+assessment_turnover <-
+  species_status_changes %>%
+  mutate(species = 1:nrow(.)) %>%
+  filter(!is.na(eoo_2007), !is.na(eoo_2017)) %>%
+  select(species, eoo_2007, eoo_2017) %>%
+  gather(dataset, eoo, -species) %>%
+  mutate(dataset = str_replace(dataset, "eoo_", "")) %>%
+  group_by(eoo) %>%
+  nest() %>%
+  mutate(turnover=map_dbl(data, calculate_turnover)) %>%
+  select(-data)
+
+turnover_plot <- 
+  ggplot(data=assessment_turnover, mapping=aes(x=eoo, y=turnover)) +
+  geom_col(fill="steelblue") +
+  geom_text(mapping=aes(label=sprintf("%.2f", turnover)), vjust=-0.25) +
+  scale_y_continuous(limits=c(0, 1)) +
+  labs(x="Assessment category", y="Dissimilarity") +
+  theme_pubclean()
+
+if (save_figures) {
+  ggsave(here("figures/appendix_s4.svg"), turnover_plot, width=7, height=4)
+} else {
+  turnover_plot
+}
+

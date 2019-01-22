@@ -3,8 +3,8 @@ library(here)
 
 # settings that can be changed
 save_figures = TRUE
-specimen_data_file <- here("output", "specimen_data_for_publication.csv")
-name_change_data_file <- here("output", "name_change_data_for_publication.csv")
+specimen_data_file <- here("data", "specimen_data.csv")
+name_change_data_file <- here("data", "name_change_data.csv")
 
 # run data transformation script
 source(here("analysis", "transform_data.R"))

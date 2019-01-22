@@ -6,6 +6,8 @@
 library(rCAT)
 library(gtools)
 library(raster)
+library(HDInterval)
+library(magrittr)
 
 convert_to_raster <- function(species_occurrences, 
                               cell_size, 
@@ -148,7 +150,7 @@ subtract_rasters <- function(raster1, raster2) {
 
 
 
-model_binomial_difference <- function(data, filter_var, category_var, n_samples) {
+model_binomial_difference <- function(data, filter_var, category_var, n_samples, comparison_value=0) {
   #' Model the difference in the probability of getting one of two outcomes between
   #' two datasets.
   #' 
@@ -208,9 +210,9 @@ model_binomial_difference <- function(data, filter_var, category_var, n_samples)
     group_by(sample) %>%
     summarise(difference = diff(p)) %>%
     summarise(mean_diff = mean(difference),
-              low_ci = quantile(difference, 0.025, names=FALSE),
-              high_ci = quantile(difference, 0.975, names=FALSE)) %>%
-    mutate(significant = (0 < low_ci) | (0 > high_ci))
+              low_ci = hdi(difference, 0.95)[1],
+              high_ci = hdi(difference, 0.95)[2]) %>%
+    mutate(significant = (comparison_value < low_ci) | (comparison_value > high_ci))
  
   return(posterior_summary) 
 }
@@ -218,7 +220,8 @@ model_binomial_difference <- function(data, filter_var, category_var, n_samples)
 model_proportion_difference <- function(data, 
                                         filter_var, 
                                         category_var, 
-                                        n_samples = 10000) {
+                                        n_samples=10000,
+                                        comparison_value=0) {
   #' Model the difference in proportions of data in two sets
   #' 
   #' Use separate multinomial models of two sets of data to
@@ -289,9 +292,9 @@ model_proportion_difference <- function(data,
     summarise(difference = diff(p)) %>%
     group_by(!!category_var) %>%
     summarise(mean_diff = mean(difference),
-              low_ci = quantile(difference, 0.025, names=FALSE),
-              high_ci = quantile(difference, 0.975, names=FALSE)) %>%
-    mutate(significant = (0 < low_ci) | (0 > high_ci))
+              low_ci = hdi(difference, 0.95)[1],
+              high_ci = hdi(difference, 0.95)[2]) %>%
+    mutate(significant = (comparison_value < low_ci) | (comparison_value > high_ci))
   
   return(posterior_summary)
   
@@ -327,162 +330,23 @@ draw_dirichlet_posterior <- function(data, categories, n_samples) {
   return(posterior_samples)
 }
 
-
-model_status_numbers <- function(assessments) {
-  #' model proportions of data with particular statuses in two data sets
+calculate_turnover <- function(data) {
+  #' Calculate turnover in sets of species between 2017 and 2007.
   #' 
-  #' TODO: maybe delete?
+  #' Calculates turnover as the Sorensen distance for sets of species,
+  #' based on the assumption that there is one set of species for 2007
+  #' and one for 2017.
+  #' 
+  #' @param data A dataframe with a column for species and one for
+  #' the dataset (if the species belongs to 2007 or 2017).
+  #' @return a number between 0 and 1, the dissimilarity.
   
-  posterior_samples_2007 <- assessments %>%
-    filter(dataset == 2007) %>%
-    count(eoo) %>%
-    draw_dirichlet_posterior(categories = levels(assessments$eoo), 10000) %>%
-    mutate(dataset = 2007,
-           status = factor(category, levels=levels(assessments$eoo), ordered=TRUE))
+  species_before <- filter(data, dataset == 2007)$species
+  species_after <- filter(data, dataset == 2017)$species
   
-  posterior_samples_2017 <- assessments %>%
-    filter(dataset == 2017) %>%
-    count(eoo) %>%
-    draw_dirichlet_posterior(categories = levels(assessments$eoo), 10000) %>%
-    mutate(dataset = 2017,
-           status = factor(category, levels=levels(assessments$eoo), ordered=TRUE))
+  unique_before <- length(setdiff(species_before, species_after))
+  unique_after <- length(setdiff(species_after, species_before))
+  in_both <- length(intersect(species_after, species_before))
   
-  posterior_summary <- rbind(posterior_samples_2007, posterior_samples_2017) %>%
-    spread(dataset, p) %>%
-    mutate(difference = `2017` - `2007`) %>%
-    group_by(status) %>%
-    summarise(mean_diff = mean(difference),
-              low_ci = quantile(difference, 0.025, names=FALSE), 
-              high_ci = quantile(difference, 0.975, names=FALSE)) %>%
-    mutate(significant = (0 < low_ci) | (0 > high_ci),
-           status = factor(status, levels=levels(assessments$eoo), ordered=TRUE))
-  
-  return(posterior_summary)
-}
-
-wilcoxon_pvalues <- function(contributions) {
-  #' calculate p-values using Wilcoxon's test
-  
-  contributions %>%
-    group_by(change) %>%
-    summarise(pvalue = wilcox.test(eoo_change ~ moved)$p.value)
-}
-
-permutation_pvalues <- function(contributions, statistic = "mean") {
-  #' calculate p-values by permutation
-  
-  obs_diffs <-
-    contributions %>%
-    group_by(change, moved) %>%
-    summarise(stat = switch(statistic,
-                            mean = mean(eoo_change),
-                            median = median(eoo_change))) %>%
-    spread(moved, stat) %>%
-    mutate(obs_diff = `FALSE` - `TRUE`) %>%
-    select(change, obs_diff)
-  
-  shuffled_contributions <-
-    do(5000) *
-    (contributions %>%
-       group_by(change) %>%
-       mutate(moved = shuffle(moved)) %>%
-       group_by(change, moved) %>%
-       summarise(stat = switch(statistic,
-                               mean = mean(eoo_change),
-                               median = median(eoo_change))))
-  
-  null_diffs <-
-    shuffled_contributions %>%
-    group_by(.index, change) %>%
-    summarise(diffs = diff(stat))
-  
-  null_diffs %>%
-    left_join(obs_diffs, by = c("change" = "change")) %>%
-    mutate(null_gt_obs = abs(diffs) >= abs(obs_diff)) %>%
-    group_by(change) %>%
-    summarise(pvalue = mean(null_gt_obs))
-  
-}
-
-test_differences_significance <- function(contributions, 
-                                          test=c("wilcoxon", "permutation"), 
-                                          stat="mean", level=0.05) {
-  #' test for a significant difference between two data sets using the
-  #' specified test
-   
-  pvalues <- switch(test,
-                    wilcoxon = wilcoxon_pvalues(contributions),
-                    permutation = permutation_pvalues(contributions, stat = "mean"))
-  
-  pvalues %>%
-    mutate(significant = pvalue <= level)
-}
-
-permutation_test <- function(data, group_var, measure_var, statistic=c("mean", "median")) {
-  #' test for significance using permutation
-  
-  if (is_character(group_var)) {
-    group_var <- as.name(group_var)
-  } else {
-    group_var <- enquo(group_var)
-  }
-  
-  if (is_character(measure_var)) {
-    measure_var <- as.name(measure_var)
-  } else {
-    measure_var <- enquo(measure_var)  
-  }
-  
-  obs_diffs <-
-    data %>%
-    group_by(!!group_var) %>%
-    summarise(stat = switch(statistic,
-                            mean = mean(!!measure_var),
-                            median = median(!!measure_var))) %>%
-    pull(stat) %>%
-    diff()
-  
-  shuffled_contributions <-
-    do(5000) *
-    (data %>%
-       mutate(label = shuffle((!!group_var))) %>%
-       group_by(label) %>%
-       summarise(stat = switch(statistic,
-                               mean = mean(!!measure_var),
-                               median = median(!!measure_var))))
-  
-  null_dist <- 
-    shuffled_contributions %>%
-    group_by(.index) %>%
-    summarise(diff = diff(stat))
-  
-  null_dist %>%
-    mutate(null_gt_obs = abs(diff) >= abs(obs_diff)) %>%
-    pull(null_gt_obs) %>%
-    mean()
-}
-
-permute_change_pair <- function(pair, data, statistic) {
-  #' carry out a permutation significance test for a pair in data
-  
-  data <- 
-    data %>% 
-    filter(change %in% c(as.character(pair$type1), as.character(pair$type2)))
-  
-  permutation_test(data, "change", "eoo_change", statistic = statistic)
-}
-
-test_pairwise_permutations <- function(contributions, statistic = c("mean", "median")) {
-  #' test for significant differences pairwise, by permutation
-  
-  combinations <-
-    crossing(contributions$change, contributions$change) %>%
-    set_colnames(c("type1", "type2")) %>%
-    filter(type1 != type2)
-  
-  combination_list <- split(combinations, seq(nrow(combinations)))
-  p_values <- map(combination_list, function(x) permute_change_pair(x, contributions, statistic))
-  
-  tibble(type1 = combinations$type1, type2 = combinations$type2, pvalue = p_values)
-  
+  (unique_before + unique_after) / (2*in_both + unique_before + unique_after)
 }

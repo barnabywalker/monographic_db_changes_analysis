@@ -33,8 +33,8 @@ clean_data <- function(data) {
     data %>%
     mutate(Longit_Secs = as.numeric(Longit_Secs),
            Latit_Secs = as.numeric(Latit_Secs)) %>%
-    mutate(Latit_Secs = ifelse(is.na(Longit_Secs), 0, Longit_Secs),
-           Latit_Secs = ifelse(is.na(Longit_Secs), 0, Longit_Secs)) %>%
+    mutate(Latit_Secs = ifelse(is.na(Latit_Secs), 0, Latit_Secs),
+           Longit_Secs = ifelse(is.na(Longit_Secs), 0, Longit_Secs)) %>%
     mutate(Longitude = "W") %>%
     mutate(LongDD = dms2dd(Longitud_Degree, Longitu_Minutes, Longit_Secs, Longitude),
            LatDD = dms2dd(Latitud_Degree, Latitu_Minutes, Latit_Secs, Latitude)) %>%
@@ -109,7 +109,7 @@ load_data <- function(table, from_database = FALSE, directory = here("data", "du
         }
       }
       
-      data <- read_csv(paste(directory, files[length(files)], sep=""))
+      data <- read_csv(paste(directory, files[length(files)], sep="/"))
     }
   
   return(data)

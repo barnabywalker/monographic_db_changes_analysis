@@ -163,9 +163,14 @@ only_genus_count <-
   group_by(dataset) %>%
   summarise(n = sum(!determined_to_species))
 
-statistics_table <- Reduce(function(...) merge(..., all = TRUE, by = c("dataset")), 
-       list(spec_count, with_coordinates, species_count, spec_per_spec, cell_count, cell_spec, cell_species, cell_specimens_same, cell_species_same, only_genus_count)) %>%
-  select(dataset, n_specimens, n_coordinates, n_species, per_species, n_cells, av_specimens, av_species, mn_species, mn_specimens, mn_species_same, av_species_same, mn_specimens_same, av_specimens_same, mn_per_species, n) %>%
+statistics_table <- 
+  Reduce(function(...) merge(..., all = TRUE, by = c("dataset")), 
+       list(spec_count, with_coordinates, species_count, spec_per_spec, 
+            cell_count, cell_spec, cell_species, cell_specimens_same, 
+            cell_species_same, only_genus_count)) %>%
+  select(dataset, n_specimens, n_coordinates, n_species, per_species, n_cells,
+         av_specimens, av_species, mn_species, mn_specimens, mn_species_same,
+         av_species_same, mn_specimens_same, av_specimens_same, mn_per_species, n) %>%
   rename(Specimens = n_specimens,
          Species = n_species,
          `Specimens per Species (median)` = per_species,
@@ -261,8 +266,8 @@ filtered_changes <-
          !(eoo_2017 %in% "DD"), 
          !is.na(change), 
          !is.na(eoo_change),
-         assessed_species_2007 %in% specimen_data[specimen_data$determined_to_species,]$species | 
-           assessed_species_2017 %in% specimen_data[specimen_data$determined_to_species,]$species,
+         assessed_species_2007 %in% specimen_data[specimen_data$determined_to_species, ]$species |
+           assessed_species_2017 %in% specimen_data[specimen_data$determined_to_species, ]$species,
          !is.na(moved))
 
 mean_changes <-

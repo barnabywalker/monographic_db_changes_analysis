@@ -73,7 +73,7 @@ changes <-
 
 changes <-
   changes %>%
-  gather(change, has_change, -id, -species_2007, -species_2017, -latitude_2007, -latitude_2017, -longitude_2007, -longitude_2017) %>%
+  gather(change, has_change, -id, -species_2007, -species_2017, -latitude_2007, -latitude_2017, -longitude_2007, -longitude_2017, -collection_year_2007, -collection_year_2017) %>%
   filter(has_change) %>%
   select(-has_change) %>%
   mutate(assessed_species_2007 = get_all_assessed_species(., name_changes, "old"),
@@ -97,7 +97,7 @@ species_changes <-
   left_join(old_assessments, by = c("species_2007" = "species")) %>%
   left_join(new_assessments, by = c("species_2017" = "species"), suffix = c("_2007", "_2017")) %>%
   select(-dataset_2017, -dataset_2007, -n) %>%
-  filter(!is.na(eoo_2007))
+  filter(! is.na(eoo_2007), ! is.na(eoo_2017))
 
 # Save everything to csv files ------------------------------------------------
 
