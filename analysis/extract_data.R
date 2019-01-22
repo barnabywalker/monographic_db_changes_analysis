@@ -1,5 +1,8 @@
 ################################################################################
 # Script to extract data from data base and save in right format for analysis. #
+#                                                                              #
+# This is included to give an idea of how we extracted our analysis data from  #
+# our database, and how it was processed during extraction.                    #
 ################################################################################
 
 library(here)
@@ -21,8 +24,11 @@ dump_data(table = "Central_Myrtaceae2017_updatedCC20171002")
 
 old_data <- 
   load_data(table = "Central_Myrtaceae2007", from_database = TRUE) %>%
+  # removing an trailing spaces from the species names
   mutate(Checklist = str_trim(Checklist)) %>%
+  # generic data cleaning
   clean_data() %>%
+  # recoding specific species names
   mutate(Checklist = recode(Checklist,
                             `Myrcia fenzliana` = "Gomidesia lindeniana",
                             `Myrcia montana` = "Gomidesia montana sp. nov.",
@@ -35,7 +41,7 @@ new_data <-
   clean_data() %>%
   mutate(Checklist = recode(Checklist, `Myrcia pubipetala` = "Myrcia isaiana"))
 
-# a subset of some old names need correcting, but not in the database
+# a subset of some old names need correcting for this analysis
 
 cordiifolia_specimens <-
   old_data %>%
@@ -79,8 +85,12 @@ new_data <-
 
 specimen_data <- 
   rbind(old_data, new_data) %>%
-  mutate(dataset = c(rep("2007", nrow(old_data)), rep("2017", nrow(new_data))),
+  mutate(
+         # creating a column for which database snapshot the specimen is from
+         dataset = c(rep("2007", nrow(old_data)), rep("2017", nrow(new_data))),
+         # creating a flag for how specific determinations are
          determined_to_species = str_detect(species, "[ ]+"),
+         # cleaning up the collection year
          collection_year = str_replace(collection_year, "\\-\\d+", ""),
          collection_year = str_replace(collection_year, "^[^12](?=[1-9]\\d{2})", "1"),
          collection_year = case_when(str_detect(collection_year, "^[12]\\d{3}$") ~ collection_year,
@@ -89,8 +99,11 @@ specimen_data <-
 
 # load name and clean changes -------------------------------------------------
 
+# these are the species name changes classified manually by the authors
+
 name_changes <- 
   read_csv(here("data", "20180403_classified_change_types.csv")) %>%
+  # change the classifications to the final publication ones
   mutate(type = recode(type,
                        `Purely nomenclatural` = "nomenclatural",
                        `Sunk to older name` = "lumped",
@@ -99,6 +112,7 @@ name_changes <-
                        `Correction` = "correction",
                        `working name published` = "nomenclatural",
                        `Working name sunk into existing species` = "lumped")) %>%
+  # remove irrelevant classifications
   filter(!(type %in% c("aff", "cf.", "ENL", "REMOVE _FIXED IN DB")),
          species_2007 %in% specimen_data$species,
          species_2017 %in% specimen_data$species)
@@ -112,6 +126,8 @@ name_changes %>%
   write_csv(here("output", "name_change_data.csv"))
 
 # recode data for publication -------------------------------------------------
+
+# for publication we have replaced species names with unique identifiers
 
 id_values <- unique(specimen_data$id)
 species_values <- unique(specimen_data$species)
@@ -129,6 +145,7 @@ name_changes$species_2007 <- new_species[name_changes$species_2007]
 name_changes$species_2017 <- new_species[name_changes$species_2017]
 
 # save recoded data and name mappings -----------------------------------------
+
 id_map <-tibble(id=names(new_ids),
                 id_recoded=new_ids)
 
