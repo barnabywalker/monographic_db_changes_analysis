@@ -91,6 +91,7 @@ specimen_data <-
          # creating a flag for how specific determinations are
          determined_to_species = str_detect(species, "[ ]+"),
          # cleaning up the collection year
+
          collection_year = str_replace(collection_year, "\\-\\d+", ""),
          collection_year = str_replace(collection_year, "^[^12](?=[1-9]\\d{2})", "1"),
          collection_year = case_when(str_detect(collection_year, "^[12]\\d{3}$") ~ collection_year,

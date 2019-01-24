@@ -36,7 +36,6 @@ eoo_change_types <- c("corrected_coordinates", "new_coordinates",
                       "split", "lumped", 
                       "new_specimen")
 
-
 # figure 1 --------------------------------------------------------------------
 
 # This is the figure mapping the number and changes of specimens and species
@@ -600,7 +599,6 @@ if (save_figures) {
   changed_eoo_specimens
 }
 
-
 # appendix s4 -----------------------------------------------------------------
 # a bar chart of the Sorensen dissimilarity in assessment categories
 
@@ -665,3 +663,49 @@ if (save_figures) {
 } else {
   mean_change_per_type_split
 }
+
+# record accumulation ---------------------------------------------------------
+
+specimen_accumulation_plot <-
+  specimen_data %>%
+  mutate(collected = ifelse(collection_year <= 2007, "before 2007", "after 2007")) %>%
+  ggplot(mapping=aes(x=collection_year)) +
+  geom_histogram(mapping=aes(fill=collected), binwidth=6, alpha=0.8, colour="black") +
+  scale_fill_manual(values=c(`before 2007`="#636363", `after 2007`="#de2d26"), name="") +
+  theme_pubclean() +
+  labs(x="Collection year", y="Number of new specimens")
+
+if (save_figures) {
+  ggsave(here("figures", "appendix_s1.svg"), specimen_accumulation_plot, height=5, width=7)
+} else {
+  specimen_accumulation_plot
+}
+
+# specimen turnover -----------------------------------------------------------
+
+assessment_turnover <-
+  species_status_changes %>%
+  mutate(species = 1:nrow(.)) %>%
+  filter(!is.na(eoo_2007), !is.na(eoo_2017)) %>%
+  select(species, eoo_2007, eoo_2017) %>%
+  gather(dataset, eoo, -species) %>%
+  mutate(dataset = str_replace(dataset, "eoo_", "")) %>%
+  group_by(eoo) %>%
+  nest() %>%
+  mutate(turnover=map_dbl(data, calculate_turnover)) %>%
+  select(-data)
+
+turnover_plot <- 
+  ggplot(data=assessment_turnover, mapping=aes(x=eoo, y=turnover)) +
+  geom_col(fill="steelblue") +
+  geom_text(mapping=aes(label=sprintf("%.2f", turnover)), vjust=-0.25) +
+  scale_y_continuous(limits=c(0, 1)) +
+  labs(x="Assessment category", y="Dissimilarity") +
+  theme_pubclean()
+
+if (save_figures) {
+  ggsave(here("figures/appendix_s4.svg"), turnover_plot, width=7, height=4)
+} else {
+  turnover_plot
+}
+
