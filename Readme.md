@@ -1,11 +1,11 @@
 # How integrated systematics is harnessing the conservation potential of megadiverse, taxonomically complex groups
 
-This repository contains the code use to carry out the analysis of specimen changes between 2007 and 2017 in a curated monograph database for Neotropical Myrcia species, discussed in the paper "How integrated systematics is harnessing the conservation potential of megadiverse, taxonomically complex groups".
+This repository contains the code use to carry out the analysis of specimen changes between 2007 and 2017 in a curated monograph database for Neotropical Myrcia species, discussed in the paper [*Harnessing the potential of integrated systematics for conservation of taxonomically complex, megadiverse plant groups*](https://doi.org/10.1111/cobi.13289).
 
 ## Re-running the analysis
 The code is provided as an R project folder, with packages tracked by [Packrat](https://rstudio.github.io/packrat/). This means that it should be possible to clone or download the repository, open the project in RStudio, and re-run the analysis.
 
-The data needed to run the analysis can be found on [Figshare](insert_link_when_published). Download the two *.csv* files (**specimen_data.csv** and **name_change_data.csv**) and place them in the data folder.
+The data needed to run the analysis can be found on [Figshare](https://doi.org/10.6084/m9.figshare.6148313). Download the two *.csv* files (**specimen_data.csv** and **name_change_data.csv**) and place them in the data folder.
 
 To run the analysis, execute the code in the **run_analysis.R** script.
 
